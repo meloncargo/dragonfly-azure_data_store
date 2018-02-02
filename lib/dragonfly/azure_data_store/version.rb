@@ -1,5 +1,5 @@
 module Dragonfly
-  module AzureDataStore
-    VERSION = "0.1.0"
+  class AzureDataStore
+    VERSION = "0.0.1"
   end
 end
