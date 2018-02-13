@@ -23,7 +23,7 @@ Gem::Specification.new do |spec|
 
   spec.add_runtime_dependency 'azure-storage-blob', '~> 1.0'
   spec.add_runtime_dependency 'dragonfly', '~> 1.0'
-  spec.add_development_dependency 'guard-rspec'
-  spec.add_development_dependency 'pry-byebug'
+  spec.add_development_dependency 'guard-rspec', '~> 4.0'
+  spec.add_development_dependency 'pry-byebug', '~> 3.0'
   spec.add_development_dependency 'rspec', '~> 3.0'
 end
