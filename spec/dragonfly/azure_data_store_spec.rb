@@ -1,10 +1,48 @@
 RSpec.describe Dragonfly::AzureDataStore do
   let(:app) { Dragonfly.app }
-  let(:content) { Dragonfly::Content.new(app, "eggheads") }
-  let(:new_content) { Dragonfly::Content.new(app) }
+  let(:datastore) do
+    Dragonfly::AzureDataStore.new(
+      account_name: 'dragonfly-test',
+      container_name: 'test',
+      access_key: 'abcde',
+      root_path: 'folder'
+    )
+  end
+  let(:container) do
+    instance_double('Azure::Storage::Blob::Container::Container', name: 'test')
+  end
+  let(:response) do
+    r = instance_double('Azure::Core::Http::HttpResponse')
+    allow(r).to receive(:uri)
+    allow(r).to receive(:status_code)
+    allow(r).to receive(:reason_phrase)
+    allow(r).to receive(:body)
+    r
+  end
+  let(:storage) do
+    s = instance_double('Azure::Storage::Blob::BlobService')
+    allow(s).to receive(:create_block_blob)
+    allow(s).to receive(:delete_blob) do |_container_name, uid|
+      raise(Azure::Core::Http::HTTPError, response) if uid =~ /not_found\.file/
+    end
+    allow(s).to receive(:get_blob) do |_container_name, uid|
+      raise(Azure::Core::Http::HTTPError, response) if uid =~ /not_found\.file/
+      [instance_double('Azure::Storage::Blob::Blob', properties: {}),
+       'file content']
+    end
+    allow(s).to receive(:get_container_properties).and_return(container)
+    allow(s).to receive(:create_container).and_return(container)
+    s
+  end
 
-  describe "registering with a symbol" do
-    it "registers a symbol for configuring" do
+  before do
+    allow_any_instance_of(Dragonfly::AzureDataStore).to receive(:storage).and_return(storage)
+    allow_any_instance_of(Dragonfly::AzureDataStore).to receive(:rand).and_return(1234)
+    allow(Time).to receive(:now).and_return(Time.new(2018, 2, 11))
+  end
+
+  describe 'registering with a symbol' do
+    it 'registers a symbol for configuring' do
       app.configure do
         datastore :azure
       end
@@ -12,95 +50,73 @@ RSpec.describe Dragonfly::AzureDataStore do
     end
   end
 
-  describe "write" do
-    it "should use the name from the content if set" do
-      content.name = 'doobie.doo'
-      uid = @data_store.write(content)
-      uid.should =~ /doobie\.doo$/
-      new_content.update(*@data_store.read(uid))
-      new_content.data.should == 'eggheads'
-    end
+  describe '.read' do
+    let(:uid) { '2018/02/11/ya_test.txt' }
 
-    it "should work ok with files with funny names" do
-      content.name = "A Picture with many spaces in its name (at 20:00 pm).png"
-      uid = @data_store.write(content)
-      uid.should =~ /A Picture with many spaces in its name \(at 20:00 pm\)\.png/
-      new_content.update(*@data_store.read(uid))
-      new_content.data.should == 'eggheads'
-    end
+    subject { datastore.read(uid) }
 
-    it "should allow for setting the path manually" do
-      uid = @data_store.write(content, :path => 'hello/there')
-      uid.should == 'hello/there'
-      new_content.update(*@data_store.read(uid))
-      new_content.data.should == 'eggheads'
-    end
+    it { is_expected.to eq ['file content', {}] }
 
-    if enabled # Fog.mock! doesn't act consistently here
-      it "should reset the connection and try again if Fog throws a socket EOFError" do
-        @data_store.storage.should_receive(:put_object).exactly(:once).and_raise(Excon::Errors::SocketError.new(EOFError.new))
-        @data_store.storage.should_receive(:put_object).with(BUCKET_NAME, anything, anything, hash_including)
-        @data_store.write(content)
-      end
-
-      it "should just let it raise if Fog throws a socket EOFError again" do
-        @data_store.storage.should_receive(:put_object).and_raise(Excon::Errors::SocketError.new(EOFError.new))
-        @data_store.storage.should_receive(:put_object).and_raise(Excon::Errors::SocketError.new(EOFError.new))
-        expect{
-          @data_store.write(content)
-        }.to raise_error(Excon::Errors::SocketError)
-      end
+    context 'not found file' do
+      let(:uid) { 'not_found.file' }
+      it { is_expected.to be_nil }
     end
   end
 
-  describe "urls for serving directly" do
-
-    before(:each) do
-      @uid = 'some/path/on/s3'
+  describe '.write' do
+    let(:opts) { {} }
+    let(:content) do
+      Dragonfly::Content.new(app, 'file content', 'name' => 'test.txt')
     end
 
-    it "should use the bucket subdomain" do
-      @data_store.url_for(@uid).should == "http://#{BUCKET_NAME}.s3.amazonaws.com/some/path/on/s3"
+    subject { datastore.write(content, opts) }
+
+    it { is_expected.to eq '2018/02/11/ya_test.txt' }
+  end
+
+  describe '.destroy' do
+    let(:uid) { '2018/02/11/ya_test.txt' }
+
+    subject { datastore.destroy(uid) }
+
+    it { is_expected.to be_truthy }
+
+    context 'not found file' do
+      let(:uid) { 'not_found.file' }
+      it { is_expected.to be_falsey }
+    end
+  end
+
+  describe '.url_for' do
+    let(:uid) { 'some/path/on/azure' }
+    let(:opts) { {} }
+
+    subject { datastore.url_for(uid, opts) }
+
+    it { is_expected.to eq 'http://dragonfly-test.blob.core.windows.net/test/folder/some/path/on/azure' }
+
+    context 'with custom host' do
+      context 'as part of class attributes' do
+        before { datastore.url_host = 'another-url.com' }
+        it { is_expected.to eq 'http://another-url.com/test/folder/some/path/on/azure' }
+      end
+
+      context 'as parameter' do
+        let(:opts) { { host: 'another-url.com' } }
+        it { is_expected.to eq 'http://another-url.com/test/folder/some/path/on/azure' }
+      end
     end
 
-    it "should use path style if the bucket is not a valid S3 subdomain" do
-      bucket_name = BUCKET_NAME.upcase
-      @data_store.bucket_name = bucket_name
-      @data_store.url_for(@uid).should == "http://s3.amazonaws.com/#{bucket_name}/some/path/on/s3"
-    end
+    context 'with custom scheme' do
+      context 'as part of class attributes' do
+        before { datastore.url_scheme = 'https' }
+        it { is_expected.to eq 'https://dragonfly-test.blob.core.windows.net/test/folder/some/path/on/azure' }
+      end
 
-    it "should use the bucket subdomain for other regions too" do
-      @data_store.region = 'eu-west-1'
-      @data_store.url_for(@uid).should == "http://#{BUCKET_NAME}.s3.amazonaws.com/some/path/on/s3"
-    end
-
-    it "should give an expiring url" do
-      @data_store.url_for(@uid, :expires => 1301476942).should =~
-        %r{^https://#{BUCKET_NAME}\.#{@data_store.domain}/some/path/on/s3\?.*X-Amz-Expires=}
-    end
-
-    it "should add query params" do
-      @data_store.url_for(@uid, :expires => 1301476942, :query => {'response-content-disposition' => 'attachment'}).should =~
-        %r{^https://#{BUCKET_NAME}\.#{@data_store.domain}/some/path/on/s3\?.*response-content-disposition=attachment}
-    end
-
-    it "should allow for using https" do
-      @data_store.url_for(@uid, :scheme => 'https').should == "https://#{BUCKET_NAME}.s3.amazonaws.com/some/path/on/s3"
-    end
-
-    it "should allow for always using https" do
-      @data_store.url_scheme = 'https'
-      @data_store.url_for(@uid).should == "https://#{BUCKET_NAME}.s3.amazonaws.com/some/path/on/s3"
-    end
-
-    it "should allow for customizing the host" do
-      @data_store.url_for(@uid, :host => 'customised.domain.com/and/path').should == "http://customised.domain.com/and/path/some/path/on/s3"
-    end
-
-    it "should allow the url_host to be customised permanently" do
-      url_host = 'customised.domain.com/and/path'
-      @data_store.url_host = url_host
-      @data_store.url_for(@uid).should == "http://#{url_host}/some/path/on/s3"
+      context 'as parameter' do
+        let(:opts) { { scheme: 'https' } }
+        it { is_expected.to eq 'https://dragonfly-test.blob.core.windows.net/test/folder/some/path/on/azure' }
+      end
     end
   end
 end

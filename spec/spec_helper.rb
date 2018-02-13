@@ -11,4 +11,7 @@ RSpec.configure do |config|
   config.expect_with :rspec do |c|
     c.syntax = :expect
   end
+  config.filter_run :focus
+  config.filter_run_excluding :broken
+  config.run_all_when_everything_filtered = true
 end

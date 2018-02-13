@@ -1,3 +1,4 @@
+require 'dragonfly'
 require 'azure/storage/blob'
 
 Dragonfly::App.register_datastore(:azure) { Dragonfly::AzureDataStore }
@@ -47,6 +48,8 @@ module Dragonfly
                "#{account_name}.blob.core.windows.net"
       "#{scheme}://#{host}/#{container_name}/#{full_path(uid)}"
     end
+
+    private
 
     def storage
       @storage ||=
