@@ -69,8 +69,8 @@ my_model.attachment.remote_url(host: 'custom.domain')   # also configurable for 
 Bug reports and pull requests are welcome on GitHub at
 https://github.com/meloncargo/dragonfly-azure_data_store. This project is
 intended to be a safe, welcoming space for collaboration, and contributors are
-expected to adhere to the [Contributor Covenant](http://contributor-
-covenant.org) code of conduct.
+expected to adhere to the [Contributor Covenant](http://contributor-covenant.org)
+code of conduct.
 
 ## License
 
