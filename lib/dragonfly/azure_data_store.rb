@@ -13,23 +13,29 @@ module Dragonfly
       @root_path = opts[:root_path]
     end
 
-    def write(content, opts = {})
+    def write(content, _opts = {})
       blob = nil
       filename = path_for(content.name || 'file')
       content.file do |f|
-        blob = azure_blob_service.create_block_blob(
+        blob = storage.create_block_blob(
           container.name, full_path(filename), f
         )
-        # storage.put_object(bucket_name, full_path(uid), f, full_storage_headers(headers, content.meta))
       end
-      # content = File.open("test.png", "rb") { |file| file.read }
       filename
     end
 
     def read(uid)
+      blob = storage.get_blob(container.name, full_path(uid))
+      [blob[1], blob[0].properties]
+    rescue Azure::Core::Http::HTTPError
+      nil
     end
 
     def destroy(uid)
+      storage.delete_blob(container.name, full_path(uid))
+      true
+    rescue Azure::Core::Http::HTTPError
+      false
     end
 
     def storage
@@ -49,13 +55,9 @@ module Dragonfly
       end
     end
 
-    # def generate_uid(name)
-    #   "#{Time.now.strftime '%Y/%m/%d/%H/%M/%S'}/#{SecureRandom.uuid}/#{name}"
-    # end
-
     def path_for(filename)
       time = Time.now
-      "#{time.strftime '%Y/%m/%d/'}#{rand(1e15).to_s(36)}_#{filename.gsub(/[^\w.]+/,'_')}"
+      "#{time.strftime '%Y/%m/%d/'}#{rand(1e15).to_s(36)}_#{filename.gsub(/[^\w.]+/, '_')}"
     end
 
     def full_path(filename)
