@@ -1,43 +1,84 @@
 # Dragonfly::AzureDataStore
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/dragonfly/azure_data_store`. To experiment with that code, run `bin/console` for an interactive prompt.
-
-TODO: Delete this and the text above, and describe your gem
+Microsoft Azure data store for use with the
+[Dragonfly](http://github.com/markevans/dragonfly) gem.
 
 ## Installation
-
-Add this line to your application's Gemfile:
 
 ```ruby
 gem 'dragonfly-azure_data_store'
 ```
 
-And then execute:
-
-    $ bundle
-
-Or install it yourself as:
-
-    $ gem install dragonfly-azure_data_store
-
 ## Usage
 
-TODO: Write usage instructions here
+Configuration (remember the require)
 
-## Development
+```ruby
+require 'dragonfly/azure_data_store'
 
-After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake spec` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
+Dragonfly.app.configure do
+  # ...
 
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and tags, and push the `.gem` file to [rubygems.org](https://rubygems.org).
+  datastore :azure, account_name: ENV['AZURE_ACCOUNT_NAME'],
+                    container_name: ENV['AZURE_CONTAINER_NAME'],
+                    access_key: ENV['AZURE_ACCESS_KEY']
+
+  # ...
+end
+```
+
+### Available configuration options
+
+```ruby
+:account_name
+:container_name
+:access_key
+:url_scheme           # defaults to "http"
+:url_host             # defaults to "<account_name>.blob.core.windows.net"
+:root_path            # store all content under a subdirectory - uids will be relative to this - defaults to nil
+```
+
+### Serving directly from Azure
+
+You can get the Azure url using
+
+```ruby
+Dragonfly.app.remote_url_for('some/uid')
+```
+
+or
+
+```ruby
+my_model.attachment.remote_url
+```
+
+or with an https url:
+
+```ruby
+my_model.attachment.remote_url(scheme: 'https')   # also configurable for all urls with 'url_scheme'
+```
+
+or with a custom host:
+
+```ruby
+my_model.attachment.remote_url(host: 'custom.domain')   # also configurable for all urls with 'url_host'
+```
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/dragonfly-azure_data_store. This project is intended to be a safe, welcoming space for collaboration, and contributors are expected to adhere to the [Contributor Covenant](http://contributor-covenant.org) code of conduct.
+Bug reports and pull requests are welcome on GitHub at
+https://github.com/meloncargo/dragonfly-azure_data_store. This project is
+intended to be a safe, welcoming space for collaboration, and contributors are
+expected to adhere to the [Contributor Covenant](http://contributor-
+covenant.org) code of conduct.
 
 ## License
 
-The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+The gem is available as open source under the terms of the
+[MIT License](https://opensource.org/licenses/MIT).
 
 ## Code of Conduct
 
-Everyone interacting in the Dragonfly::AzureDataStore project’s codebases, issue trackers, chat rooms and mailing lists is expected to follow the [code of conduct](https://github.com/[USERNAME]/dragonfly-azure_data_store/blob/master/CODE_OF_CONDUCT.md).
+Everyone interacting in the Dragonfly::AzureDataStore project’s codebases, issue
+trackers, chat rooms and mailing lists is expected to follow the
+[code of conduct](https://github.com/meloncargo/dragonfly-azure_data_store/blob/master/CODE_OF_CONDUCT.md).
