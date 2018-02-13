@@ -4,13 +4,16 @@ Dragonfly::App.register_datastore(:azure) { Dragonfly::AzureDataStore }
 
 module Dragonfly
   class AzureDataStore
-    attr_accessor :account_name, :access_key, :container_name, :root_path
+    attr_accessor :account_name, :access_key, :container_name, :root_path,
+                  :url_scheme, :url_host
 
     def initialize(opts = {})
       @account_name = opts[:account_name]
       @access_key = opts[:access_key]
       @container_name = opts[:container_name]
       @root_path = opts[:root_path]
+      @url_scheme = opts[:url_scheme] || 'http'
+      @url_host = opts[:url_host]
     end
 
     def write(content, _opts = {})
@@ -36,6 +39,13 @@ module Dragonfly
       true
     rescue Azure::Core::Http::HTTPError
       false
+    end
+
+    def url_for(uid, opts = {})
+      scheme = opts[:scheme] || url_scheme
+      host   = opts[:host]   || url_host ||
+               "#{account_name}.blob.core.windows.net"
+      "#{scheme}://#{host}/#{container_name}/#{full_path(uid)}"
     end
 
     def storage
