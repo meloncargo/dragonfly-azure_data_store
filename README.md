@@ -37,7 +37,7 @@ end
 :url_host             # defaults to "<account_name>.blob.core.windows.net"
 :root_path            # store all content under a subdirectory - uids will be relative to this - defaults to nil
 :store_meta           # store metadata info in azure. Defaults to true
-:legacy_meta          # activate only if file store was used before and want to load old `.meta.yml` generated files from azure storage.
+:legacy_meta          # activate only if file store was used before and want to load old `.meta.yml` generated files migrated to azure storage.
 ```
 
 ### Serving directly from Azure
