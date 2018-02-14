@@ -37,7 +37,7 @@ module Dragonfly
       meta = nil
       if store_meta
         meta = blob[0].metadata
-        if meta.blank? && legacy_meta
+        if legacy_meta && (meta.nil? || meta.empty?)
           begin
             meta_blob = storage.get_blob(container.name, meta_path(path))
             meta = YAML.safe_load(meta_blob[1])

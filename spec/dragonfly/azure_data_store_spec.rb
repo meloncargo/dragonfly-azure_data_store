@@ -19,6 +19,7 @@ RSpec.describe Dragonfly::AzureDataStore do
     allow(r).to receive(:body)
     r
   end
+  let(:metadata) { {} }
   let(:storage) do
     s = instance_double('Azure::Storage::Blob::BlobService')
     allow(s).to receive(:create_block_blob)
@@ -27,7 +28,7 @@ RSpec.describe Dragonfly::AzureDataStore do
     end
     allow(s).to receive(:get_blob) do |_container_name, uid|
       raise(Azure::Core::Http::HTTPError, response) if uid =~ /not_found\.file/
-      [instance_double('Azure::Storage::Blob::Blob', properties: {}),
+      [instance_double('Azure::Storage::Blob::Blob', metadata: metadata),
        'file content']
     end
     allow(s).to receive(:get_container_properties).and_return(container)
@@ -60,6 +61,18 @@ RSpec.describe Dragonfly::AzureDataStore do
     context 'not found file' do
       let(:uid) { 'not_found.file' }
       it { is_expected.to be_nil }
+    end
+
+    context 'with metadata' do
+      let(:metadata) do
+        {
+          'name' => 'image.png',
+          'model_class' => 'Attachment',
+          'model_attachment' => 'file'
+        }
+      end
+
+      it { is_expected.to include metadata }
     end
   end
 
