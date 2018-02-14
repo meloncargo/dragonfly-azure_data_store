@@ -1,12 +1,13 @@
 require 'dragonfly'
 require 'azure/storage/blob'
+require 'yaml'
 
 Dragonfly::App.register_datastore(:azure) { Dragonfly::AzureDataStore }
 
 module Dragonfly
   class AzureDataStore
     attr_accessor :account_name, :access_key, :container_name, :root_path,
-                  :url_scheme, :url_host
+                  :url_scheme, :url_host, :store_meta, :legacy_meta
 
     def initialize(opts = {})
       @account_name = opts[:account_name]
@@ -15,22 +16,37 @@ module Dragonfly
       @root_path = opts[:root_path]
       @url_scheme = opts[:url_scheme] || 'http'
       @url_host = opts[:url_host]
+      @store_meta = opts[:store_meta].nil? ? true : opts[:store_meta]
+      @legacy_meta = opts[:legacy_meta]
     end
 
     def write(content, _opts = {})
-      blob = nil
       filename = path_for(content.name || 'file')
+      path = full_path(filename)
+      options = {}
+      options[:metadata] = content.meta if store_meta
       content.file do |f|
-        blob = storage.create_block_blob(
-          container.name, full_path(filename), f
-        )
+        storage.create_block_blob(container.name, path, f, options)
       end
       filename
     end
 
     def read(uid)
-      blob = storage.get_blob(container.name, full_path(uid))
-      [blob[1], blob[0].properties]
+      path = full_path(uid)
+      blob = storage.get_blob(container.name, path)
+      meta = nil
+      if store_meta
+        meta = blob[0].metadata
+        if meta.blank? && legacy_meta
+          begin
+            meta_blob = storage.get_blob(container.name, meta_path(path))
+            meta = YAML.safe_load(meta_blob[1])
+          rescue Azure::Core::Http::HTTPError
+            meta = {}
+          end
+        end
+      end
+      [blob[1], meta]
     rescue Azure::Core::Http::HTTPError
       nil
     end
@@ -75,6 +91,10 @@ module Dragonfly
 
     def full_path(filename)
       File.join(*[root_path, filename].compact)
+    end
+
+    def meta_path(path)
+      "#{path}.meta.yml"
     end
   end
 end
