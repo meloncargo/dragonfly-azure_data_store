@@ -26,33 +26,33 @@ module Dragonfly
       options = {}
       options[:metadata] = content.meta if store_meta
       content.file do |f|
-        storage.create_block_blob(container.name, path, f, options)
+        storage.create_block_blob(container_name, path, f, options)
       end
       filename
     end
 
     def read(uid)
       path = full_path(uid)
-      blob = storage.get_blob(container.name, path)
+      result, body = storage.get_blob(container_name, path)
       meta = nil
       if store_meta
-        meta = blob[0].metadata
+        meta = result.metadata
         if legacy_meta && (meta.nil? || meta.empty?)
           begin
-            meta_blob = storage.get_blob(container.name, meta_path(path))
+            meta_blob = storage.get_blob(container_name, meta_path(path))
             meta = YAML.safe_load(meta_blob[1])
           rescue Azure::Core::Http::HTTPError
             meta = {}
           end
         end
       end
-      [blob[1], meta]
+      [body, meta]
     rescue Azure::Core::Http::HTTPError
       nil
     end
 
     def destroy(uid)
-      storage.delete_blob(container.name, full_path(uid))
+      storage.delete_blob(container_name, full_path(uid))
       true
     rescue Azure::Core::Http::HTTPError
       false
