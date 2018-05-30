@@ -34,19 +34,25 @@ module Dragonfly
     def read(uid)
       path = full_path(uid)
       result, body = storage.get_blob(container_name, path)
-      meta = nil
-      if store_meta
-        meta = result.metadata
-        if legacy_meta && (meta.nil? || meta.empty?)
-          begin
-            meta_blob = storage.get_blob(container_name, meta_path(path))
-            meta = YAML.safe_load(meta_blob[1])
-          rescue Azure::Core::Http::HTTPError
-            meta = {}
-          end
-        end
-      end
+      meta = result.metadata
+      meta = meta_from_file(path) if legacy_meta && (meta.nil? || meta.empty?)
       [body, meta]
+    rescue Azure::Core::Http::HTTPError
+      nil
+    end
+
+    # Updates metadata of file and deletes old meta file from legacy mode.
+    #
+    def update_metadata(uid)
+      return false unless store_meta
+      path = full_path(uid)
+      meta = storage.get_blob(container_name, path)[0].metadata
+      return false if meta.present?
+      meta = meta_from_file(path)
+      return false if meta.blank?
+      storage.set_blob_metadata(container_name, path, meta)
+      storage.delete_blob(container_name, meta_path(path))
+      true
     rescue Azure::Core::Http::HTTPError
       nil
     end
@@ -95,6 +101,13 @@ module Dragonfly
 
     def meta_path(path)
       "#{path}.meta.yml"
+    end
+
+    def meta_from_file(path)
+      meta_blob = storage.get_blob(container_name, meta_path(path))
+      YAML.safe_load(meta_blob[1])
+    rescue Azure::Core::Http::HTTPError
+      {}
     end
   end
 end
