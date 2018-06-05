@@ -26,14 +26,14 @@ module Dragonfly
       options = {}
       options[:metadata] = content.meta if store_meta
       content.file do |f|
-        storage.create_block_blob(container_name, path, f, options)
+        storage(:create_block_blob, container_name, path, f, options)
       end
       filename
     end
 
     def read(uid)
       path = full_path(uid)
-      result, body = storage.get_blob(container_name, path)
+      result, body = storage(:get_blob, container_name, path)
       meta = result.metadata
       meta = meta_from_file(path) if legacy_meta && (meta.nil? || meta.empty?)
       [body, meta]
@@ -46,19 +46,19 @@ module Dragonfly
     def update_metadata(uid)
       return false unless store_meta
       path = full_path(uid)
-      meta = storage.get_blob(container_name, path)[0].metadata
+      meta = storage(:get_blob, container_name, path)[0].metadata
       return false if meta.present?
       meta = meta_from_file(path)
       return false if meta.blank?
-      storage.set_blob_metadata(container_name, path, meta)
-      storage.delete_blob(container_name, meta_path(path))
+      storage(:set_blob_metadata, container_name, path, meta)
+      storage(:delete_blob, container_name, meta_path(path))
       true
     rescue Azure::Core::Http::HTTPError
       nil
     end
 
     def destroy(uid)
-      storage.delete_blob(container_name, full_path(uid))
+      storage(:delete_blob, container_name, full_path(uid))
       true
     rescue Azure::Core::Http::HTTPError
       false
@@ -73,20 +73,25 @@ module Dragonfly
 
     private
 
-    def storage
+    def storage(method, *params)
+      tries ||= 2
       @storage ||=
         Azure::Storage::Blob::BlobService.create(
           storage_account_name: account_name,
           storage_access_key: access_key
         )
+      @storage.send(method, *params)
+    rescue Faraday::ConnectionFailed
+      raise if (tries -= 1).zero?
+      retry
     end
 
     def container
       @container ||= begin
-        storage.get_container_properties(container_name)
+        storage(:get_container_properties, container_name)
       rescue Azure::Core::Http::HTTPError => e
         raise if e.status_code != 404
-        storage.create_container(container_name)
+        storage(:create_container, container_name)
       end
     end
 
@@ -104,7 +109,7 @@ module Dragonfly
     end
 
     def meta_from_file(path)
-      meta_blob = storage.get_blob(container_name, meta_path(path))
+      meta_blob = storage(:get_blob, container_name, meta_path(path))
       YAML.safe_load(meta_blob[1])
     rescue Azure::Core::Http::HTTPError
       {}
