@@ -37,7 +37,7 @@ RSpec.describe Dragonfly::AzureDataStore do
   end
 
   before do
-    allow_any_instance_of(Dragonfly::AzureDataStore).to receive(:storage).and_return(storage)
+    allow(Azure::Storage::Blob::BlobService).to receive(:create).and_return(storage)
     allow_any_instance_of(Dragonfly::AzureDataStore).to receive(:rand).and_return(1234)
     allow(Time).to receive(:now).and_return(Time.new(2018, 2, 11))
   end
