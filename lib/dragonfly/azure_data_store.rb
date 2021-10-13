@@ -25,6 +25,7 @@ module Dragonfly
       path = full_path(filename)
       options = {}
       options[:metadata] = content.meta if store_meta
+      options[:content_type] = content.mime_type # for Azure blob to serve the content properly
       content.file do |f|
         storage(:create_block_blob, container_name, path, f, options)
       end
